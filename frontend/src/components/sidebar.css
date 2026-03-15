@@ -1,0 +1,182 @@
+.app-with-sidebar {
+    min-height: 100vh;
+}
+
+.restaurant-sidebar {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: var(--sidebar-width, 260px);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 1.25rem 1rem;
+    background: linear-gradient(180deg, #f4d9b1 0%, #e8bf8a 45%, #d59f66 100%);
+    border-right: 1px solid rgba(117, 67, 26, 0.35);
+    box-shadow: 10px 0 24px rgba(0, 0, 0, 0.18);
+    overflow-y: auto;
+    z-index: 1000;
+}
+
+@media (max-width: 900px) {
+    .restaurant-sidebar {
+        position: static;
+        width: 100%;
+        height: auto;
+        max-height: none;
+    }
+}
+
+.sidebar-top {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.sidebar-brand {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.4rem 0.3rem 1rem;
+    border-bottom: 1px solid rgba(117, 67, 26, 0.25);
+}
+
+.sidebar-logo {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.35rem;
+    background: rgba(255, 255, 255, 0.45);
+}
+
+.sidebar-brand-name {
+    font-size: 1.2rem;
+    font-weight: 800;
+    color: #5b2f0e;
+    margin: 0;
+}
+
+.sidebar-brand-tag {
+    font-size: 0.76rem;
+    color: #78451c;
+    margin: 0;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.sidebar-link {
+    text-decoration: none;
+    font-weight: 600;
+    color: #4a2a10;
+    padding: 0.65rem 0.7rem;
+    border-radius: 0.6rem;
+    transition: background 0.2s ease, color 0.2s ease;
+}
+
+.sidebar-link:hover,
+.sidebar-link.active {
+    background: rgba(255, 255, 255, 0.52);
+    color: #2f1908;
+}
+
+.order-online-btn {
+    width: 100%;
+    border: none;
+    border-radius: 999px;
+    padding: 0.9rem 1rem;
+    font-size: 1rem;
+    font-weight: 700;
+    color: #fff;
+    cursor: pointer;
+    background: linear-gradient(135deg, #f04d23 0%, #d7232c 100%);
+    box-shadow: 0 8px 18px rgba(215, 35, 44, 0.35);
+}
+
+.sidebar-bottom {
+    display: flex;
+    flex-direction: column;
+    gap: 0.95rem;
+}
+
+.sidebar-contact,
+.working-hours {
+    background: rgba(255, 255, 255, 0.36);
+    border-radius: 0.85rem;
+    padding: 0.85rem;
+    color: #4b2a0f;
+}
+
+.sidebar-contact h3,
+.working-hours h3 {
+    margin: 0 0 0.6rem;
+    font-size: 0.94rem;
+    color: #5b2f0e;
+}
+
+.sidebar-contact p {
+    margin: 0 0 0.5rem;
+    font-size: 0.84rem;
+    line-height: 1.35;
+}
+
+.send-email-btn {
+    width: 100%;
+    border: 1px solid rgba(91, 47, 14, 0.35);
+    border-radius: 0.6rem;
+    background: rgba(255, 255, 255, 0.68);
+    color: #4b2a0f;
+    font-weight: 600;
+    padding: 0.58rem 0.7rem;
+    cursor: pointer;
+}
+
+.sidebar-social {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.35rem;
+}
+
+.sidebar-social a {
+    width: 42px;
+    height: 42px;
+    border-radius: 50%;
+    text-decoration: none;
+    text-transform: lowercase;
+    font-size: 0.76rem;
+    font-weight: 700;
+    color: #4b2a0f;
+    background: rgba(255, 255, 255, 0.66);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.hours-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    font-size: 0.82rem;
+    margin-bottom: 0.5rem;
+}
+
+.hours-row:last-child {
+    margin-bottom: 0;
+}
+
+.app-main-content {
+    margin-left: var(--sidebar-width, 260px);
+    min-height: 100vh;
+}
+
+.app-main-content.auth-main {
+    margin-left: 0;
+}

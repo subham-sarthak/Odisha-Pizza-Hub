@@ -1,0 +1,34 @@
+:root {
+  --sidebar-width: 260px;
+}
+
+.dashboard-layout {
+  min-height: 100vh;
+  display: flex;
+}
+
+.dashboard-layout-sidebar {
+  width: var(--sidebar-width);
+  flex: 0 0 var(--sidebar-width);
+}
+
+.dashboard-layout-content {
+  flex: 1;
+  min-height: 100vh;
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .dashboard-layout {
+    flex-direction: column;
+  }
+
+  .dashboard-layout-sidebar {
+    width: 100%;
+    flex: 0 0 auto;
+  }
+
+  .dashboard-layout-content {
+    width: 100%;
+  }
+}
