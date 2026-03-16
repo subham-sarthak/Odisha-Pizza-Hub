@@ -109,6 +109,19 @@ const formatOrderTime = (dateInput) => {
   });
 };
 
+const formatCustomerTimestamp = (dateInput) => {
+  if (!dateInput) return "-";
+  const parsed = new Date(dateInput);
+  if (Number.isNaN(parsed.getTime())) return "-";
+  return parsed.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit"
+  });
+};
+
 const statusStyles = {
   pending: { background: "rgba(245, 158, 11, 0.14)", color: "#b45309" },
   accepted: { background: "rgba(34, 197, 94, 0.14)", color: "#15803d" },
@@ -128,7 +141,7 @@ const refundStatusStyles = {
 export default function AdminDashboard() {
   const { logout } = useAuth();
   const navigate = useNavigate();
-  const { lastNewOrder, lastOrderUpdate, lastStoreStatusUpdate, isConnected } = useOrderSocket({ isAdmin: true });
+  const { lastNewOrder, lastOrderUpdate, lastStoreStatusUpdate, lastRevenueUpdate, isConnected } = useOrderSocket({ isAdmin: true });
   const { playNotificationSound } = useSoundNotification();
 
   const [revenue, setRevenue] = useState({ daily: 0, weekly: 0, monthly: 0, yearly: 0 });
@@ -146,6 +159,10 @@ export default function AdminDashboard() {
   const [storeOpen, setStoreOpen] = useState(true);
   const [storeUpdating, setStoreUpdating] = useState(false);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [customerDetails, setCustomerDetails] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
+  const [customersError, setCustomersError] = useState("");
+  const [showCustomers, setShowCustomers] = useState(false);
 
   const load = async () => {
     const [rev, peak, allOrders, adminCounts, prods, cps, refs, storeStatusRes] = await Promise.all([
@@ -210,6 +227,11 @@ export default function AdminDashboard() {
     setStoreOpen(Boolean(lastStoreStatusUpdate.isOpen));
   }, [lastStoreStatusUpdate]);
 
+  useEffect(() => {
+    if (!lastRevenueUpdate) return;
+    setRevenue(lastRevenueUpdate);
+  }, [lastRevenueUpdate]);
+
   const updateStoreStatus = async (nextStatus) => {
     setStoreUpdating(true);
     try {
@@ -256,6 +278,38 @@ export default function AdminDashboard() {
     await load();
   };
 
+  const fetchCustomerDetails = async () => {
+    setCustomersLoading(true);
+    setCustomersError("");
+    try {
+      const { data } = await adminApi.users();
+      setCustomerDetails(Array.isArray(data?.data) ? data.data : []);
+    } catch (error) {
+      setCustomersError(error?.response?.data?.message || "Unable to load customer details.");
+    } finally {
+      setCustomersLoading(false);
+    }
+  };
+
+  const handleDeleteUser = async (id, name) => {
+    if (!window.confirm(`Permanently delete "${name}" from the database? This cannot be undone.`)) return;
+    try {
+      await adminApi.deleteUser(id);
+      setCustomerDetails((prev) => prev.filter((c) => c._id !== id));
+      setNotification({ tone: "success", title: "User Deleted", message: `"${name}" has been permanently removed.` });
+    } catch (error) {
+      setNotification({ tone: "error", title: "Delete Failed", message: error?.response?.data?.message || "Could not delete user." });
+    }
+  };
+
+  const toggleCustomersPanel = async () => {
+    const nextVisible = !showCustomers;
+    setShowCustomers(nextVisible);
+    if (nextVisible && customerDetails.length === 0 && !customersLoading) {
+      await fetchCustomerDetails();
+    }
+  };
+
   const downloadAllOrdersPdf = async () => {
     setPdfLoading(true);
     try {
@@ -294,6 +348,15 @@ export default function AdminDashboard() {
     () => analyticsStatuses.map((status) => ({ name: status, count: orders.filter((order) => order.status === status).length })),
     [orders]
   );
+
+  const recentOrders = useMemo(() => {
+    const now = new Date();
+    const todayReset = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 0, 0);
+    const cutoff = now >= todayReset
+      ? todayReset
+      : new Date(todayReset.getTime() - 24 * 60 * 60 * 1000);
+    return orders.filter((order) => new Date(order.createdAt).getTime() >= cutoff.getTime());
+  }, [orders]);
 
   const yearlyRevenue = useMemo(() => {
     if (revenue.yearly !== undefined && revenue.yearly !== null) {
@@ -609,27 +672,28 @@ export default function AdminDashboard() {
           animate={{ opacity: 1, scale: 1 }}
           style={{ gridColumn: "1 / -1" }}
         >
-          <div
-            style={{
-              marginBottom: "1.25rem",
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-              gap: "0.75rem",
-              flexWrap: "wrap"
-            }}
-          >
-            <h3 style={{ margin: 0 }}>All Orders</h3>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
-              <button type="button" onClick={downloadAllOrdersPdf} disabled={pdfLoading}>
-                {pdfLoading ? "Preparing PDF..." : "All Orders PDF"}
-              </button>
+          <div style={{ marginBottom: "1.25rem", display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.75rem" }}>
+            <div>
+              <h3 style={{ marginBottom: "0.3rem" }}>Recent Orders</h3>
+              <p className="muted">Orders placed since the last 11:59 PM reset. Clears every day at 11:59 PM.</p>
             </div>
+            <span style={{
+              padding: "0.45rem 1rem",
+              borderRadius: "999px",
+              background: recentOrders.length > 0 ? "rgba(255,107,53,0.14)" : "rgba(255,255,255,0.06)",
+              color: recentOrders.length > 0 ? "#ff6b35" : "var(--muted)",
+              fontWeight: 700,
+              fontSize: "0.92rem",
+              whiteSpace: "nowrap"
+            }}>
+              Total Orders: {recentOrders.length}
+            </span>
           </div>
-          {orders.length === 0 ? (
-            <p className="muted">No orders available.</p>
+
+          {recentOrders.length === 0 ? (
+            <p className="muted">No orders since the last 11:59 PM reset.</p>
           ) : (
-            <div style={{ overflowX: "auto" }}>
+            <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "29rem" }}>
               <table>
                 <thead>
                   <tr>
@@ -644,9 +708,8 @@ export default function AdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.slice(0, 15).map((order) => {
+                  {recentOrders.map((order) => {
                     const style = statusStyles[order.status] || statusStyles.pending;
-
                     return (
                       <tr key={order._id}>
                         <td>#{order.tokenNumber || order._id?.slice(-6)}</td>
@@ -686,23 +749,84 @@ export default function AdminDashboard() {
                                 </option>
                               ))}
                             </select>
-                            <button
-                              type="button"
-                              onClick={() => deleteOrderTemporarily(order._id)}
-                              style={{
-                                border: "1px solid rgba(239, 68, 68, 0.45)",
-                                background: "rgba(239, 68, 68, 0.12)",
-                                color: "#b91c1c",
-                                borderRadius: "0.6rem",
-                                padding: "0.4rem 0.65rem",
-                                fontWeight: 700,
-                                cursor: "pointer"
-                              }}
-                              aria-label={`Temporarily remove order #${order.tokenNumber || order._id?.slice(-6)} from table`}
-                            >
-                              Delete
-                            </button>
                           </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </motion.div>
+
+        <motion.div
+          className="card"
+          initial={{ opacity: 0, scale: 0.98 }}
+          animate={{ opacity: 1, scale: 1 }}
+          style={{ gridColumn: "1 / -1" }}
+        >
+          <div
+            style={{
+              marginBottom: "1.25rem",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "0.75rem",
+              flexWrap: "wrap"
+            }}
+          >
+            <h3 style={{ margin: 0 }}>All Orders History</h3>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.55rem", flexWrap: "wrap", justifyContent: "flex-end" }}>
+              <button type="button" onClick={downloadAllOrdersPdf} disabled={pdfLoading}>
+                {pdfLoading ? "Preparing PDF..." : "All Orders PDF"}
+              </button>
+            </div>
+          </div>
+          {orders.length === 0 ? (
+            <p className="muted">No orders available.</p>
+          ) : (
+            <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "29rem" }}>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Order ID</th>
+                    <th>Customer</th>
+                    <th>Items</th>
+                    <th>Total</th>
+                    <th>Order Date</th>
+                    <th>Order Time</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order) => {
+                    const style = statusStyles[order.status] || statusStyles.pending;
+
+                    return (
+                      <tr key={order._id}>
+                        <td>#{order.tokenNumber || order._id?.slice(-6)}</td>
+                        <td>{order.userId?.name || "Customer"}</td>
+                        <td>
+                          {Array.isArray(order.items) && order.items.length
+                            ? order.items.map((item) => `${item.productName || item.name || "Item"} x${item.qty}`).join(", ")
+                            : "-"}
+                        </td>
+                        <td>{formatCurrency(order.totalAmount || order.totalPrice)}</td>
+                        <td>{formatOrderDate(order.createdAt)}</td>
+                        <td>{formatOrderTime(order.createdAt)}</td>
+                        <td>
+                          <span
+                            style={{
+                              padding: "0.3rem 0.7rem",
+                              borderRadius: "999px",
+                              fontWeight: 700,
+                              fontSize: "0.84rem",
+                              ...style
+                            }}
+                          >
+                            {order.status}
+                          </span>
                         </td>
                       </tr>
                     );
@@ -736,9 +860,36 @@ export default function AdminDashboard() {
               <p className="muted">Products</p>
               <p style={{ fontSize: "1.5rem", fontWeight: 700 }}>{counts.products || 0}</p>
             </div>
-            <div style={{ padding: "1rem", background: "rgba(255,255,255,0.03)", borderRadius: "0.75rem" }}>
+            <div
+              style={{
+                padding: "1rem",
+                background: "rgba(255,255,255,0.03)",
+                borderRadius: "0.75rem",
+                border: showCustomers ? "1px solid rgba(255,107,53,0.35)" : "1px solid transparent",
+                cursor: "pointer"
+              }}
+              role="button"
+              tabIndex={0}
+              onClick={toggleCustomersPanel}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  toggleCustomersPanel();
+                }
+              }}
+            >
               <p className="muted">Users</p>
-              <p style={{ fontSize: "1.5rem", fontWeight: 700 }}>{counts.users || 0}</p>
+              <p style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "0.6rem" }}>{counts.users || 0}</p>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  toggleCustomersPanel();
+                }}
+              >
+                {showCustomers ? "Hide Customer Details" : "View Customer Details"}
+              </button>
             </div>
             <div style={{ padding: "1rem", background: "rgba(255,255,255,0.03)", borderRadius: "0.75rem" }}>
               <p className="muted">Coupons</p>
@@ -747,18 +898,93 @@ export default function AdminDashboard() {
           </div>
         </motion.div>
 
-        <motion.div className="card" initial={{ opacity: 0, scale: 0.98 }} animate={{ opacity: 1, scale: 1 }}>
-          <h3 style={{ marginBottom: "1.25rem" }}>Order Distribution</h3>
-          <ResponsiveContainer width="100%" height={220}>
-            <BarChart data={statusCounts}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
-              <XAxis dataKey="name" stroke="var(--muted)" />
-              <YAxis stroke="var(--muted)" />
-              <Tooltip />
-              <Bar dataKey="count" fill="#ff6b35" />
-            </BarChart>
-          </ResponsiveContainer>
-        </motion.div>
+        {showCustomers ? (
+          <motion.div
+            className="card"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            style={{ gridColumn: "1 / -1" }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", gap: "0.75rem", flexWrap: "wrap", marginBottom: "1rem" }}>
+              <div>
+                <h3 style={{ marginBottom: "0.35rem" }}>Customer Details</h3>
+                <p className="muted">Customer profile and order activity overview.</p>
+              </div>
+              <button type="button" className="btn-secondary" onClick={fetchCustomerDetails} disabled={customersLoading}>
+                {customersLoading ? "Refreshing..." : "Refresh"}
+              </button>
+            </div>
+
+            {customersLoading ? <p className="muted">Loading customer details...</p> : null}
+            {!customersLoading && customersError ? <p style={{ color: "#b91c1c" }}>{customersError}</p> : null}
+            {!customersLoading && !customersError && customerDetails.length === 0 ? <p className="muted">No customers found.</p> : null}
+
+            {!customersLoading && !customersError && customerDetails.length > 0 ? (
+              <div style={{ overflowX: "auto" }}>
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Email</th>
+                      <th>Phone</th>
+                      <th>Role</th>
+                      <th>Joined</th>
+                      <th>Total Orders</th>
+                      <th>Total Spent</th>
+                      <th>Last Order</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {customerDetails.map((customer) => (
+                      <tr key={customer._id}>
+                        <td>{customer.name || "-"}</td>
+                        <td>{customer.email || "-"}</td>
+                        <td>{customer.phone || "-"}</td>
+                        <td>
+                          <span
+                            style={{
+                              padding: "0.25rem 0.65rem",
+                              borderRadius: "999px",
+                              fontWeight: 700,
+                              fontSize: "0.78rem",
+                              background: customer.role === "admin" ? "rgba(239,68,68,0.14)" : "rgba(34,197,94,0.14)",
+                              color: customer.role === "admin" ? "#b91c1c" : "#15803d"
+                            }}
+                          >
+                            {customer.role || "customer"}
+                          </span>
+                        </td>
+                        <td>{formatCustomerTimestamp(customer.createdAt)}</td>
+                        <td>{customer.totalOrders || 0}</td>
+                        <td>{formatCurrency(customer.totalSpent || 0)}</td>
+                        <td>{formatCustomerTimestamp(customer.lastOrderAt)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteUser(customer._id, customer.name || customer.email)}
+                            style={{
+                              border: "1px solid rgba(239,68,68,0.45)",
+                              background: "rgba(239,68,68,0.12)",
+                              color: "#b91c1c",
+                              borderRadius: "0.6rem",
+                              padding: "0.35rem 0.75rem",
+                              fontWeight: 700,
+                              fontSize: "0.82rem",
+                              cursor: "pointer"
+                            }}
+                          >
+                            Delete
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </motion.div>
+        ) : null}
 
         <motion.div
           className="card"

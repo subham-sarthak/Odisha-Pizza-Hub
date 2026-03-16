@@ -14,18 +14,26 @@ const resetField = async (field) => {
   }
 };
 
+const isLastDayOfMonth = () => {
+  const now = new Date();
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return tomorrow.getDate() === 1;
+};
+
 export const startRevenueResetCronJobs = () => {
-  // Daily reset — every day at 1:00 AM
-  cron.schedule("0 1 * * *", () => resetField("dailyRevenue"));
+  // Daily reset — every day at 23:59 (11:59 PM)
+  cron.schedule("59 23 * * *", () => resetField("dailyRevenue"));
 
-  // Weekly reset — every Monday at 1:00 AM
-  cron.schedule("0 1 * * 1", () => resetField("weeklyRevenue"));
+  // Weekly reset — every Sunday at 23:59 (11:59 PM)
+  cron.schedule("59 23 * * 0", () => resetField("weeklyRevenue"));
 
-  // Monthly reset — 1st of every month at 1:00 AM
-  cron.schedule("0 1 1 * *", () => resetField("monthlyRevenue"));
+  // Monthly reset — last day of every month at 23:59 (11:59 PM)
+  cron.schedule("59 23 * * *", () => {
+    if (isLastDayOfMonth()) resetField("monthlyRevenue");
+  });
 
-  // Yearly reset — March 2nd every year at 1:00 AM
-  cron.schedule("0 1 2 3 *", () => resetField("yearlyRevenue"));
+  // Yearly reset — March 2nd every year at 23:59 (11:59 PM)
+  cron.schedule("59 23 2 3 *", () => resetField("yearlyRevenue"));
 
   console.log("[RevenueReset] Revenue reset cron jobs scheduled");
 };

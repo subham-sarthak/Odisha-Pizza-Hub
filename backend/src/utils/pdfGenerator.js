@@ -65,6 +65,9 @@ export const generateDailyOrdersPdf = async ({
   const fileName = getDailyReportFileName(reportDateObj);
   const filePath = path.join(reportsDir, fileName);
 
+  // Filter to only show completed orders in revenue report
+  const completedOrders = orders.filter((order) => order.status === "completed");
+
   await new Promise((resolve, reject) => {
     const doc = new PDFDocument({ margin: 48, size: "A4" });
     const writeStream = fs.createWriteStream(filePath);
@@ -82,22 +85,22 @@ export const generateDailyOrdersPdf = async ({
 
     doc.moveDown(1.1);
 
-    const grandTotal = orders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
+    const grandTotal = completedOrders.reduce((sum, order) => sum + Number(order.totalAmount || 0), 0);
     doc
       .fontSize(11)
       .fillColor("#111827")
-      .text(`Total Orders: ${orders.length}`)
+      .text(`Total Orders: ${completedOrders.length}`)
       .text(`Total Revenue: ${formatCurrency(grandTotal)}`);
 
     doc.moveDown(1);
 
-    if (!orders.length) {
-      doc.fontSize(12).fillColor("#6b7280").text("No orders found for this day.");
+    if (!completedOrders.length) {
+      doc.fontSize(12).fillColor("#6b7280").text("No completed orders found for this day.");
       doc.end();
       return;
     }
 
-    orders.forEach((order, index) => {
+    completedOrders.forEach((order, index) => {
       if (doc.y > 690) {
         doc.addPage();
       }
@@ -132,7 +135,7 @@ export const generateDailyOrdersPdf = async ({
         doc.fontSize(10).fillColor("#6b7280").text("- No items", { indent: 12 });
       }
 
-      if (index !== orders.length - 1) {
+      if (index !== completedOrders.length - 1) {
         doc
           .moveDown(0.5)
           .strokeColor("#e5e7eb")

@@ -9,7 +9,7 @@ import User from "../models/User.js";
 import { notifyOrderEvent } from "../services/notificationService.js";
 import { createOrdersPdfBuffer } from "../services/orderArchiveService.js";
 import { calculateRewardEarned, maxRewardRedeem } from "../services/rewardService.js";
-import { emitNewOrder, emitOrderUpdate } from "../sockets/index.js";
+import { emitNewOrder, emitOrderUpdate, emitRevenueUpdated } from "../sockets/index.js";
 import { ApiError, asyncHandler } from "../utils/apiError.js";
 import { sendResponse } from "../utils/response.js";
 
@@ -262,16 +262,62 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   const order = await Order.findById(req.params.id);
   if (!order) throw new ApiError(404, "Order not found");
 
+  const previousStatus = order.status;
   order.status = status;
   if (status === "completed" && order.paymentMethod === "cod") {
     order.paymentStatus = "paid";
   }
   await order.save();
 
+  // If order is being rejected or cancelled, reverse the revenue that was added on creation.
+  const isBeingCancelled = (status === "rejected" || status === "cancelled");
+  const wasAlreadyCancelled = (previousStatus === "rejected" || previousStatus === "cancelled");
+  if (isBeingCancelled && !wasAlreadyCancelled) {
+    const deduct = -Math.abs(order.totalAmount);
+    Stats.findOneAndUpdate(
+      { key: "primary" },
+      {
+        $inc: {
+          dailyRevenue: deduct,
+          weeklyRevenue: deduct,
+          monthlyRevenue: deduct,
+          yearlyRevenue: deduct
+        }
+      },
+      { upsert: true }
+    ).catch((err) => console.error("[Stats] Failed to reverse revenue for cancelled order:", err));
+  }
+
   const liveOrderDoc = await serializeOrderForRealtime(order._id);
   const liveOrder = shapeRealtimeOrder(liveOrderDoc);
 
   emitOrderUpdate({ userId: order.userId.toString(), order: liveOrder });
+
+  // Emit updated revenue if status changed to/from completed
+  const becameCompleted = status === "completed" && previousStatus !== "completed";
+  const leftCompleted = previousStatus === "completed" && status !== "completed";
+  if (becameCompleted || leftCompleted) {
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const startOfWeek = new Date(startOfDay);
+    startOfWeek.setDate(startOfDay.getDate() - startOfDay.getDay());
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    let yearStart = new Date(now.getFullYear(), 2, 2);
+    if (now < yearStart) yearStart = new Date(now.getFullYear() - 1, 2, 2);
+
+    const [daily, weekly, monthly, yearly] = await Promise.all([
+      Order.aggregate([{ $match: { createdAt: { $gte: startOfDay }, status: "completed" } }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }]),
+      Order.aggregate([{ $match: { createdAt: { $gte: startOfWeek }, status: "completed" } }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }]),
+      Order.aggregate([{ $match: { createdAt: { $gte: startOfMonth }, status: "completed" } }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }]),
+      Order.aggregate([{ $match: { createdAt: { $gte: yearStart }, status: "completed" } }, { $group: { _id: null, total: { $sum: "$totalAmount" } } }])
+    ]);
+    emitRevenueUpdated({
+      daily: daily[0]?.total ?? 0,
+      weekly: weekly[0]?.total ?? 0,
+      monthly: monthly[0]?.total ?? 0,
+      yearly: yearly[0]?.total ?? 0
+    });
+  }
 
   const user = await User.findById(order.userId);
   await notifyOrderEvent({ user, order, event: "order_status_updated" });

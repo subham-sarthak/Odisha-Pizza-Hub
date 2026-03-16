@@ -11,6 +11,7 @@ export const useOrderSocket = ({ isAdmin = false, isKitchen = false, connectWith
   const [lastNewOrder, setLastNewOrder] = useState(null);
   const [lastOrderUpdate, setLastOrderUpdate] = useState(null);
   const [lastStoreStatusUpdate, setLastStoreStatusUpdate] = useState(null);
+  const [lastRevenueUpdate, setLastRevenueUpdate] = useState(null);
 
   useEffect(() => {
     if (!connectWithoutAuth && (!token || !user?._id)) return undefined;
@@ -59,6 +60,10 @@ export const useOrderSocket = ({ isAdmin = false, isKitchen = false, connectWith
       setLastStoreStatusUpdate(status);
     });
 
+    socket.on("revenueUpdated", (revenue) => {
+      setLastRevenueUpdate(revenue);
+    });
+
     return () => {
       socket.disconnect();
       socketRef.current = null;
@@ -71,6 +76,7 @@ export const useOrderSocket = ({ isAdmin = false, isKitchen = false, connectWith
     isConnected,
     lastNewOrder,
     lastOrderUpdate,
-    lastStoreStatusUpdate
+    lastStoreStatusUpdate,
+    lastRevenueUpdate
   };
 };

@@ -342,13 +342,24 @@
   border-bottom: 1px solid #eef2f8;
   vertical-align: top;
   font-size: 0.9rem;
+  background-color: #fff;
+  color: #1d2433;
 }
 
-.customer-orders-table th {
+.customer-orders-table thead tr th {
+  background-color: #f4f6fb;
   color: #5f6880;
   font-size: 0.8rem;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+}
+
+.customer-orders-table tbody tr {
+  background-color: #fff;
+}
+
+.customer-orders-table tbody tr:hover td {
+  background-color: #f8f9fd;
 }
 
 .customer-order-items p {

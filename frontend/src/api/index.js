@@ -60,7 +60,9 @@ export const paymentApi = {
 export const adminApi = {
   revenue: () => api.get("/admin/revenue"),
   peakHours: () => api.get("/admin/peak-hours"),
-  counts: () => api.get("/admin/counts")
+  counts: () => api.get("/admin/counts"),
+  users: () => api.get("/admin/users"),
+  deleteUser: (id) => api.delete(`/admin/users/${id}`)
 };
 
 export const offerApi = {

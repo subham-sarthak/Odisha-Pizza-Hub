@@ -22,7 +22,8 @@ export const generateReportForDay = async (dateValue = new Date()) => {
     createdAt: {
       $gte: start,
       $lte: end
-    }
+    },
+    status: "completed"
   })
     .populate("userId", "name")
     .sort({ createdAt: 1 })

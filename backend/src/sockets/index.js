@@ -39,3 +39,8 @@ export const emitStoreStatusUpdated = (storeStatus) => {
   if (!ioRef) return;
   ioRef.emit("storeStatusUpdated", storeStatus);
 };
+
+export const emitRevenueUpdated = (revenue) => {
+  if (!ioRef) return;
+  ioRef.to("admin").emit("revenueUpdated", revenue);
+};
